@@ -1,1 +1,54 @@
+name: Build BPB Panel
 
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "0 1 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      BPB_VERSION: v3.2.3  # 只需改这里就能换版本
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+
+      - name: Install JavaScript obfuscator
+        run: npm install -g javascript-obfuscator
+
+      - name: Download BPB Worker JS (version ${{ env.BPB_VERSION }})
+        run: |
+          DOWNLOAD_URL="https://github.com/bia-pain-bache/BPB-Worker-Panel/releases/download/${{ env.BPB_VERSION }}/unobfuscated-worker.js"
+          echo "Fetching from: $DOWNLOAD_URL"
+          wget -q --show-progress --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 -t 3 -O origin.js "$DOWNLOAD_URL"
+
+      - name: Obfuscate JS
+        run: |
+          javascript-obfuscator origin.js --output _worker.js \
+            --compact true \
+            --control-flow-flattening false \
+            --dead-code-injection false \
+            --identifier-names-generator mangled \
+            --string-array false
+
+      - name: Commit and push changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          branch: main
+          commit_message: ":arrow_up: update BPB panel to ${{ env.BPB_VERSION }}"
+          commit_author: "github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
+          push_options: --force
